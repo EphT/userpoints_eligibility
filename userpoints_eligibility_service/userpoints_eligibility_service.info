@@ -1,0 +1,7 @@
+name = Userpoints Eligibility Service
+description = Provides userpoints eligibility functionality via a service.
+package = Userpoints
+core = 7.x
+
+dependencies[] = userpoints_eligibility
+dependencies[] = services

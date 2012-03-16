@@ -1,0 +1,36 @@
+<?php
+
+/**
+ * @file
+ * Provides eligibility functionality via a service.
+ */
+
+
+/**
+ * Implements hook_services_resources().
+ */
+function userpoints_eligibility_service_services_resources() {
+  return array(
+    'userpoints_eligibility' => array(
+      'actions' => array(
+        'add' => array(
+          'help' => 'Add a userpoint based on eligibility of an account.',
+          'file' => array('file' => 'inc', 'module' => 'userpoints_eligibility_service', 'name' => 'resources/userpoints_eligibility_resource'),
+          'callback' => '_userpoints_eligibility_resource_add',
+          'access callback' => '_userpoints_eligibility_resource_access',
+          'access arguments' => array('add'),
+          'access arguments append' => TRUE,
+          'args' => array(
+            array(
+              'name' => 'tid',
+              'description' => 'The Category ID.',
+              'type' => 'int',
+              'optional' => TRUE,
+              'source' => array('param' => 'tid'),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
