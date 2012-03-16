@@ -198,7 +198,8 @@ function userpoints_eligibility_access($account = NULL, $timestamp = NULL, $tid 
  * Add points for a user.
  */
 function userpoints_eligibility_add($params) {
-  if ( userpoints_eligibility_access(user_load($params['uid']), NULL, $params['tid']) ) {
+  $eligibility = eligibility_get(array('uid' => $params['uid'], 'tid' => $params['tid']));
+  if ($eligibility->status == ELIGIBILITY_IS_ELIGIBLE) {
     eligibility_event_save($params['uid'], $params['tid']);
     return userpoints_userpointsapi($params);
   }
@@ -206,26 +207,7 @@ function userpoints_eligibility_add($params) {
   return array(
     'status' => FALSE,
     'reason' => t('User is not eligible.'),
-  );
-}
-
-/**
- * Returns an array of possible collect restriction periods.
- */
-function userpoints_eligibility_eligibility_lengths() {
-  return array(
-    NULL => 'Never',
-    60 => '1 minute',
-    300 => '5 minutes',
-    600 => '10 minutes',
-    900 => '15 minutes',
-    1800 => 'Half hour',
-    3600 => 'One hour',
-    86400 => 'One Day',
-    604800 => 'One Week',
-    1209600 => 'Two Weeks',
-    2419200 => 'Four Weeks',
-    31536000 => '365 Days',
+    'next' => $eligibility->next,
   );
 }
 
@@ -257,12 +239,12 @@ function userpoints_eligibility_config($variable = NULL) {
 }
 
 /**
- * Process variables for userpoints-collect-form.tpl.php
+ * Process variables for userpoints-eligibility-form.tpl.php
  *
  * The $variables array contains the following arguments:
  * - $form
  *
- * @see userpoints-collect-block-form.tpl.php
+ * @see userpoints-eligibility-block-form.tpl.php
  */
 function template_preprocess_userpoints_eligibility_form(&$variables) {
   $variables['userpoints_eligibility'] = array();
