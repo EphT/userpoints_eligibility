@@ -1,0 +1,274 @@
+ <?php
+
+/**
+ * @file
+ * Provides a block for users to collect points within time constraints.
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function userpoints_eligibility_permission() {
+  return array(
+    'use userpoints eligibility' => array(
+      'title' => t('Use userpoints eligibility'),
+      'description' => t('Allows users to use userpoints eligibility.'),
+    ),
+    'debug userpoints eligibility' => array(
+      'title' => t('View debug userpoints eligibility messages.'),
+      'description' => t('Allows users to use userpoints eligibility.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_theme().
+ */
+function userpoints_eligibility_theme() {
+  return array(
+    'userpoints_eligibility_form' => array(
+      'render element' => 'form',
+      'template' => 'userpoints-eligibility-form'
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu
+ */
+function userpoints_eligibility_menu() {
+  return array(
+    'admin/config/people/userpoints/eligibility' => array(
+      'title' => 'Eligibility settings',
+      'description' => 'Settings for userpoints eligibility',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('userpoints_eligibility_admin_settings'),
+      'access callback' => 'userpoints_admin_access',
+      'access arguments' => array('administer'),
+      'file' => 'userpoints_eligibility.admin.inc',
+      'type' => MENU_LOCAL_TASK,
+      'weight' => 11,
+    ),
+  );
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function userpoints_eligibility_block_info() {
+  $blocks[0] = array(
+    'info' => t('Userpoints Eligibility (Uncategorized)'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+  foreach ( taxonomy_term_load_multiple(array(), array('vid' => userpoints_get_vid())) as $term ) {
+    $blocks[$term->tid] = array(
+      'info' => t('Userpoints Eligibility (@name)', array('@name' => $term->name)),
+      'cache' => DRUPAL_NO_CACHE,
+    );
+  }
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function userpoints_eligibility_block_view($delta = '') {
+  if ( user_access('use userpoints eligibility') ) {
+    return array(
+      'content' => drupal_get_form('userpoints_eligibility_form', $delta),
+    );
+  }
+}
+
+/**
+ * Userpoints Collect Form.
+ */
+function userpoints_eligibility_form($form, &$form_state, $tid) {
+  global $user;
+
+  $timestamp = time();
+  $cfg = userpoints_eligibility_config();
+  $eligibility = eligibility_get(array('uid' => $user->uid, 'tid' => $tid));
+
+  if ( $eligibility->status == ELIGIBILITY_IS_ELIGIBLE ) {
+    $form['submit'] = array(
+      '#type' => 'submit',
+      '#value' => $cfg['is_eligible_text'],
+    );
+  }
+  else {
+    switch ( $eligibility->status ) {
+      case ELIGIBILITY_IS_EARLY:
+        $note = format_string($cfg['note_is_early'], array(
+          '@start' => format_interval($eligibility->start),
+        ));
+        break;
+
+      case ELIGIBILITY_IS_LATE:
+        $note = format_string($cfg['note_is_late'], array(
+          '@end' => format_date($eligibility->end),
+        ));
+        break;
+
+      case ELIGIBILITY_IS_NOT_ELIGIBLE:
+        $note = format_string($cfg['note_is_not_eligible'], array(
+          '@timeleft' => format_interval($eligibility->next),
+        ));
+        break;
+    }
+
+    $form['#disabled'] = TRUE;
+
+    $form['link'] = array(
+      '#prefix' => '<p class="link">',
+      '#suffix' => '</p>',
+      '#markup' => l($cfg['is_not_eligible_text'], $cfg['is_not_eligible_link'], array(
+        'attributes' => array(
+          'class' => array('btn', 'btn-primary', 'btn-large'),
+        ),
+      )),
+    );
+
+    if ( isset($note) ) {
+      $form['note'] = array(
+        '#prefix' => '<p class="note">',
+        '#suffix' => '</p>',
+        '#markup' => $note,
+      );
+    }
+  }
+
+  return $form;
+}
+
+/**
+ * Validation Callback: Userpoints Collect Form.
+ */
+function userpoints_eligibility_form_validate($form, &$form_state) {
+  // @TODO: add some sort of validation here.
+}
+
+/**
+ * Submit Callback: Userpoints Collect Form.
+ */
+function userpoints_eligibility_form_submit($form, &$form_state) {
+  global $user;
+
+  userpoints_eligibility_add(array(
+    'uid' => $user->uid,
+    'tid' => userpoints_eligibility_config('tid'),
+    'points' => userpoints_eligibility_config('points'),
+  ));
+
+  $form_state['redirect'] = userpoints_eligibility_config('redirect');
+}
+
+/**
+ * Determine whether the user has access to collect userpoints.
+ *
+ * @param $account
+ *   (optional) The account to check, if not given use currently logged in user.
+ * @param $tid
+ *   (optional) The Category ID or NULL.
+ * @return
+ *   Boolean TRUE if the account has the requested permission.
+ */
+function userpoints_eligibility_access($account = NULL, $timestamp = NULL, $tid = NULL) {
+  global $user;
+
+  if ( !isset($account) ) {
+    $account = $user;
+  }
+
+  // User #1 has privileges.
+  if ( $account->uid == 1 ) {
+    return TRUE;
+  }
+
+  // Check if account has permission and is eligible to collect.
+  $eligibility = eligibility_get( array('uid'=> $account->uid, 'tid' => $tid) );
+  if ( user_access('use userpoints eligibility', $account) && $eligibility->status == ELIGIBILITY_IS_ELIGIBLE ) {
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+/**
+ * Add points for a user.
+ */
+function userpoints_eligibility_add($params) {
+  if ( userpoints_eligibility_access(user_load($params['uid']), NULL, $params['tid']) ) {
+    eligibility_event_save($params['uid'], $params['tid']);
+    return userpoints_userpointsapi($params);
+  }
+
+  return array(
+    'status' => FALSE,
+    'reason' => t('User is not eligible.'),
+  );
+}
+
+/**
+ * Returns an array of possible collect restriction periods.
+ */
+function userpoints_eligibility_eligibility_lengths() {
+  return array(
+    NULL => 'Never',
+    60 => '1 minute',
+    300 => '5 minutes',
+    600 => '10 minutes',
+    900 => '15 minutes',
+    1800 => 'Half hour',
+    3600 => 'One hour',
+    86400 => 'One Day',
+    604800 => 'One Week',
+    1209600 => 'Two Weeks',
+    2419200 => 'Four Weeks',
+    31536000 => '365 Days',
+  );
+}
+
+/**
+ * Returns an array containing configuration settings.
+ *
+ * @param $variable
+ *   A string representing a configuration variable.
+ * @return
+ *   A saved config variable or an array of all variables.
+ */
+function userpoints_eligibility_config($variable = NULL) {
+  $config = array(
+    'is_eligible_text' => variable_get('userpoints_eligibility_is_eligible_text', 'Collect Point'),
+    'is_not_eligible_text' => variable_get('userpoints_eligibility_is_not_eligible_label', 'Back to Site'),
+    'is_not_eligible_link' => variable_get('userpoints_eligibility_is_not_eligible_link', 'http://example.com'),
+    'note_is_early' => variable_get('userpoints_eligibility_note_is_early', 'Availability starts at @start'),
+    'note_is_late' => variable_get('userpoints_eligibility_note_is_late', 'Availability ended at @end'),
+    'note_is_not_eligible' => variable_get('userpoints_eligibility_note_is_not_eligible', 'Next point available in @timeleft'),
+    'redirect' => variable_get('userpoints_eligibility_redirect', '<front>'),
+    'debug' => variable_get('userpoints_eligibility_debug', FALSE),
+  );
+
+  if ( !is_null($variable) ) {
+    return isset($config[$variable]) ? $config[$variable] : FALSE;
+  }
+
+  return $config;
+}
+
+/**
+ * Process variables for userpoints-collect-form.tpl.php
+ *
+ * The $variables array contains the following arguments:
+ * - $form
+ *
+ * @see userpoints-collect-block-form.tpl.php
+ */
+function template_preprocess_userpoints_eligibility_form(&$variables) {
+  $variables['userpoints_eligibility'] = array();
+  foreach ( element_children($variables['form']) as $key ) {
+    $variables['userpoints_eligibility'][$key] = drupal_render($variables['form'][$key]);
+  }
+
+  $variables['userpoints_eligibility_form'] = implode($variables['userpoints_eligibility']);
+}

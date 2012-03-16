@@ -1,0 +1,15 @@
+ <?php
+
+/**
+ * @file
+ * Install / Uninstall userpoints_eligibility Schema.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function userpoints_eligibility_uninstall() {
+  db_delete('variable')
+    ->condition('name', 'userpoints_eligibility_%', 'LIKE')
+    ->execute();
+}
