@@ -57,7 +57,7 @@ function userpoints_eligibility_menu() {
  */
 function userpoints_eligibility_block_info() {
   $blocks[0] = array(
-    'info' => t('Userpoints Eligibility (Uncategorized)'),
+    'info' => t('Userpoints Eligibility (General)'),
     'cache' => DRUPAL_NO_CACHE,
   );
   foreach ( taxonomy_term_load_multiple(array(), array('vid' => userpoints_get_vid())) as $term ) {
@@ -86,11 +86,14 @@ function userpoints_eligibility_block_view($delta = '') {
 function userpoints_eligibility_form($form, &$form_state, $tid) {
   global $user;
 
-  $timestamp = time();
   $cfg = userpoints_eligibility_config();
   $eligibility = eligibility_get(array('uid' => $user->uid, 'tid' => $tid));
 
   if ( $eligibility->status == ELIGIBILITY_IS_ELIGIBLE ) {
+    $form['tid'] = array(
+      '#type' => 'hidden',
+      '#value' => $tid,
+    );
     $form['submit'] = array(
       '#type' => 'submit',
       '#value' => $cfg['is_eligible_text'],
@@ -156,8 +159,8 @@ function userpoints_eligibility_form_submit($form, &$form_state) {
 
   userpoints_eligibility_add(array(
     'uid' => $user->uid,
-    'tid' => userpoints_eligibility_config('tid'),
-    'points' => userpoints_eligibility_config('points'),
+    'tid' => $form_state['values']['tid'],
+    'points' => 1,
   ));
 
   $form_state['redirect'] = userpoints_eligibility_config('redirect');
