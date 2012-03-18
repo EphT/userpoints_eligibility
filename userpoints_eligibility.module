@@ -176,7 +176,7 @@ function userpoints_eligibility_form_submit($form, &$form_state) {
     'points' => 1,
   ));
 
-  //$form_state['redirect'] = userpoints_eligibility_config('redirect');
+  $form_state['redirect'] = userpoints_eligibility_config('redirect');
 }
 
 /**
