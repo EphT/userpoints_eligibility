@@ -1,4 +1,4 @@
- <?php
+<?php
 
 /**
  * @file
@@ -78,6 +78,19 @@ function userpoints_eligibility_block_view($delta = '') {
       'content' => drupal_get_form('userpoints_eligibility_form', $delta),
     );
   }
+}
+
+/**
+ * Implements hook_trigger_info().
+ */
+function userpoints_eligibility_trigger_info() {
+  return array(
+    'userpoints_eligibility' => array(
+      'userpoints_eligibility_add' => array(
+        'label' => t('When a userpoint is added based on eligibility'),
+      ),
+    ),
+  );
 }
 
 /**
@@ -204,6 +217,19 @@ function userpoints_eligibility_add($params) {
   $eligibility = eligibility_get(array('uid' => $params['uid'], 'tid' => $params['tid']));
   if ($eligibility->status == ELIGIBILITY_IS_ELIGIBLE) {
     eligibility_event_save($params['uid'], $params['tid']);
+
+    // Call triggers.
+    if ( module_exists('trigger') ) {
+      $actions = trigger_get_assigned_actions('userpoints_eligibility_add');
+
+      $context = array(
+        'group' => 'userpoints_eligibility',
+        'hook' => 'userpoints_eligibility_add',
+      );
+
+      actions_do(array_keys($actions), (object) array(), $context);
+    }
+
     return userpoints_userpointsapi($params);
   }
 
@@ -225,7 +251,7 @@ function userpoints_eligibility_add($params) {
 function userpoints_eligibility_config($variable = NULL) {
   $config = array(
     'is_eligible_text' => variable_get('userpoints_eligibility_is_eligible_text', 'Collect Point'),
-    'is_not_eligible_text' => variable_get('userpoints_eligibility_is_not_eligible_label', 'Back to Site'),
+    'is_not_eligible_text' => variable_get('userpoints_eligibility_is_not_eligible_text', 'Back to Site'),
     'is_not_eligible_link' => variable_get('userpoints_eligibility_is_not_eligible_link', 'http://example.com'),
     'note_is_early' => variable_get('userpoints_eligibility_note_is_early', 'Availability starts at @start'),
     'note_is_late' => variable_get('userpoints_eligibility_note_is_late', 'Availability ended at @end'),
